@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-
+#coding=utf-8
 '''
 Multitarget planar tracking
 ==================
@@ -39,9 +39,11 @@ import imutils
 from collections import namedtuple
 
 # local modules
-import video
-import common
-from video import presets
+#import video
+#import common
+#from video import presets
+
+import json
 
 
 FLANN_INDEX_KDTREE = 1
@@ -143,13 +145,40 @@ class PlaneTracker:
 
 class App:
     def __init__(self, src):
-        self.cap = video.create_capture(src, presets['book'])
+        #self.cap = video.create_capture(src, presets['book'])
+        self.cap = cv2.VideoCapture(src)
         self.frame = None
         self.paused = False
         self.tracker = PlaneTracker()
 
+        self.fps = self.cap.get(cv2.CAP_PROP_FPS)
+        self.interval = self.fps // 2
+
+        print('fps', self.fps)
+        print('interval',self.interval)
+
         cv2.namedWindow('plane')
-        self.rect_sel = common.RectSelector('plane', self.on_rect)
+        #cv2.namedWindow('plane2')
+        #self.rect_sel = common.RectSelector('plane', self.on_rect)
+
+        self.all_frame_positions = []
+
+    def make_one_position(self, x, y, w, h, frame_count):
+        pos = {
+            u'x': int(x),
+            u'y': int(y),
+            u'w': int(w),
+            u'h': int(h),
+            u'frame_count': int(frame_count),
+        }
+
+        return pos
+
+    def add_position_per_frame(self, pick, frame_count):
+        frame_positions = []
+        for (xA, yA, xB, yB) in pick:
+            frame_positions.append( self.make_one_position( xA, yA, xB-xA, yB-yA, frame_count ) )
+        return frame_positions
 
     def on_rect(self, rect):
         self.tracker.add_target(self.frame, rect)
@@ -157,13 +186,18 @@ class App:
     def run(self):
         hog = cv2.HOGDescriptor()
         hog.setSVMDetector(cv2.HOGDescriptor_getDefaultPeopleDetector())
+        frame_count = 0
 
         while True:
-            playing = not self.paused and not self.rect_sel.dragging
+            playing = not self.paused # and not self.rect_sel.dragging
             if playing or self.frame is None:
                 ret, frame = self.cap.read()
+                # print('frame count',self.cap.get(cv2.CAP_PROP_POS_FRAMES))
                 if not ret:
                     break
+                frame_count = self.cap.get(cv2.CAP_PROP_POS_FRAMES)
+                if frame_count % self.interval != 0:
+                    continue
                 self.frame = frame.copy()
 
             image = self.frame.copy()
@@ -181,7 +215,7 @@ class App:
                 # The size of the sliding window is fixed at 64 x 128 pixels
                 (rects, weights) = hog.detectMultiScale(image, winStride=(4, 4),
                                                         padding=(8, 8), scale=1.05, hitThreshold=0.5)
-                print(weights)
+                # print(weights)
 
                 # draw the original bounding boxes
                 for (x, y, w, h) in rects:
@@ -196,9 +230,13 @@ class App:
                 # draw the final bounding boxes
                 for (xA, yA, xB, yB) in pick:
                     cv2.rectangle(image, (xA, yA), (xB, yB), (0, 255, 0), 2)
+                    cv2.circle(image,((xA+xB)//2, (yA+yB)//2),7,(255, 0, 0),3)
 
-            self.rect_sel.draw(image)
+                self.all_frame_positions.append(self.add_position_per_frame(pick,frame_count))
+
+            #self.rect_sel.draw(image)
             cv2.imshow('plane', image)
+            # cv2.imshow('plane2', orig)
             ch = cv2.waitKey(1)
             if ch == ord(' '):
                 self.paused = not self.paused
@@ -207,12 +245,20 @@ class App:
             if ch == 27:
                 break
 
+        self.save_position_file(self.all_frame_positions)
+
+    def save_position_file(self, all_frame_positions):
+        with open('positions.json','w') as f:
+            json.dump(all_frame_positions, f)
+
 if __name__ == '__main__':
     print(__doc__)
 
     import sys
-    try:
-        video_src = sys.argv[1]
-    except:
-        video_src = 0
+    # try:
+    #     video_src = sys.argv[1]
+    # except:
+    #     video_src = 0
+
+    video_src = 'PNNL_Parking_LOT.avi'
     App(video_src).run()
