@@ -40,7 +40,7 @@ def get_color():
 
 
 for cluster in data:
-    img = np.zeros((1920, 1080, 3), dtype=np.uint8)
+    img = np.zeros((1080, 1920, 3), dtype=np.uint8)
 
     for person in cluster[:3]:
         pts = []

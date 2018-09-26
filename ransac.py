@@ -83,8 +83,9 @@ return bestfit
         maybe_idxs, test_idxs = random_partition(n,data.shape[0])
         maybeinliers = data[maybe_idxs,:]
         test_points = data[test_idxs]
-        maybemodel = model.fit(maybeinliers)
-        test_err = model.get_error( test_points, maybemodel)
+        maybemodel = model.fit(maybeinliers, maybe_idxs)
+        test_err = model.get_error( test_points, maybemodel, test_idxs)
+        # print(test_err)
         also_idxs = test_idxs[test_err < t] # select indices of rows with accepted points
         alsoinliers = data[also_idxs,:]
         if debug:
@@ -103,13 +104,17 @@ return bestfit
                 besterr = thiserr
                 best_inlier_idxs = numpy.concatenate( (maybe_idxs, also_idxs) )
 
-
+        # aaa = len(alsoinliers)
         if len(alsoinliers) > d and by_count:
-            also_count_new = len( also_idxs )
+            also_count_new = len( alsoinliers )
             if also_count < also_count_new:
                 bestfit = maybemodel
                 also_count = also_count_new
                 best_inlier_idxs = numpy.concatenate( (maybe_idxs, also_idxs) )
+        else:
+            # print('-=-=-= find what wrong, also_count',also_count,'also_idxs',also_idxs)
+            # print(test_err)
+            pass
 
         iterations+=1
     if bestfit is None:
@@ -150,7 +155,43 @@ class LinearLeastSquaresModel:
         B_fit = scipy.dot(A,model)
         err_per_point = numpy.sum((B-B_fit)**2,axis=1) # sum squared error per row
         return err_per_point
-        
+
+class HypoNodeModel:
+    def __init__(self):
+        pass
+
+    def pos_vec(self, node):
+        return numpy.array((node.data['x'] + node.data['w']/2, node.data['y']+ node.data['h']/2 ),dtype=numpy.float32)
+
+    def fit(self, pos_vecs, idxs):
+        assert len(pos_vecs) == 2, 'HypoNodeModel, only take 2 point to predict'
+        pos1, pos2 = pos_vecs
+        idx1, idx2 = idxs
+
+        a1 = (pos2 - pos1) / (idx2 - idx1)
+        a0 = pos1 - idx1 * a1
+
+        return a1,a0
+
+    def get_error(self, pos_vecs, model, idxs):
+        a1, a0 = model
+        error = []
+        for pos, idx in zip(pos_vecs, idxs):
+            predict_pos = a1*idx + a0
+            error.append( numpy.linalg.norm( predict_pos - pos ) )
+
+        return numpy.array(error)
+
+    # def get_error(self, nodes, model):
+    #     a1, a0 = model
+    #     error = []
+    #     for node in nodes:
+    #         predict_pos = a1*node.index + a0
+    #         pos = self.pos_vec(node)
+    #         error.append( numpy.linalg.norm( predict_pos - pos ) )
+    #
+    #     return numpy.array(error)
+
 def test():
     # generate perfect input data
 

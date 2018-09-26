@@ -1,6 +1,6 @@
 # coding = utf-8
 
-from graph import ClasterGraph, Node, Edge
+from graph import ClasterHypoGraph, Node, Edge
 import numpy as np
 import json
 
@@ -29,7 +29,7 @@ cluster_num = len(data) // 5
 print('cluster_num',cluster_num)
 
 for n in range(cluster_num):
-    g = ClasterGraph()
+    g = ClasterHypoGraph()
     g.set_cluster_num(5)
     for idx, nodes in enumerate( data[n*5:n*5+5] ):
         for i in nodes:
@@ -44,7 +44,7 @@ for n in range(cluster_num):
     g.calc_weight()
 
     cluster_data=[]
-    while g.none_zero_cluster_num() > 3:
+    while g.none_zero_cluster_num() > 4:
         sub = g.get_largest_sub_graph(True)
         g.remove_nodes(sub)
         node_data = [ i.data for i in sub]
